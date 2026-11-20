@@ -154,7 +154,7 @@
   {{end}}
 
   <footer>
-    <div class="freset">{{tr "footer_reset"}} &middot; <a href="/about">About</a> &middot; <a href="/privacy">{{tr "privacy_link"}}</a></div>
+    <div class="freset">{{tr "footer_reset"}} &middot; <a href="/about">About</a> &middot; <a href="/privacy">{{tr "privacy_link"}}</a> &middot; <a href="https://github.com/wuqing78/seeyouhere">GitHub</a></div>
     {{template "langswitch" .}}
     {{if and .LoggedIn (not .Inside)}}<div class="fme"><b>{{.MeName}}</b> &middot; Lv {{.Level}} &middot; {{trf "footer_day" .Days}}</div>{{end}}
   </footer>
