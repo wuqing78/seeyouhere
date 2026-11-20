@@ -16,6 +16,7 @@ type app struct {
 	tmpls   map[string]*template.Template
 	cfg     config
 	creds   *credState
+	ghCreds *credState
 	hub     *hub
 	limiter *rateLimiter
 }
@@ -42,8 +43,9 @@ type plate struct {
 }
 
 type homeData struct {
-	LoggedIn  bool
-	Banned    bool
+	LoggedIn    bool
+	GitHubLogin bool
+	Banned      bool
 	Inside    bool
 	IsAdmin   bool
 	DateLabel string
@@ -119,6 +121,7 @@ func (a *app) handleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := homeData{DateLabel: dayLabel(langOf(r), day), LoggedIn: u != nil}
+	data.GitHubLogin = a.ghCreds != nil && a.ghCreds.configured()
 	roster, err := a.roster(day)
 	if err != nil {
 		http.Error(w, tr(langOf(r), "err_server"), http.StatusInternalServerError)

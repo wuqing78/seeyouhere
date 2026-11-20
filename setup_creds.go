@@ -38,6 +38,8 @@ type credState struct {
 	setupHash []byte // SHA-256 of the one-time setup token; nil when inactive
 	tokenPath string
 	envFile   string
+	idEnv     string // env var names the credentials persist under
+	secretEnv string
 }
 
 func newCredState(cfg config, envFile string) *credState {
@@ -46,6 +48,21 @@ func newCredState(cfg config, envFile string) *credState {
 		secret:    cfg.GoogleSecret,
 		tokenPath: filepath.Join(filepath.Dir(cfg.DBPath), "setup-token"),
 		envFile:   envFile,
+		idEnv:     "GOOGLE_CLIENT_ID",
+		secretEnv: "GOOGLE_CLIENT_SECRET",
+	}
+}
+
+// newGitHubCredState is the GitHub twin of newCredState: same one-time
+// setup machinery, its own token file and its own env var names.
+func newGitHubCredState(cfg config, envFile string) *credState {
+	return &credState{
+		id:        cfg.GitHubID,
+		secret:    cfg.GitHubSecret,
+		tokenPath: filepath.Join(filepath.Dir(cfg.DBPath), "setup-token-github"),
+		envFile:   envFile,
+		idEnv:     "GITHUB_CLIENT_ID",
+		secretEnv: "GITHUB_CLIENT_SECRET",
 	}
 }
 
@@ -119,9 +136,9 @@ func (cs *credState) completeSetup(id, secret string) {
 	cs.setupHash = nil
 }
 
-// rewriteEnvContent returns env-file content with the GOOGLE_CLIENT_ID and
-// GOOGLE_CLIENT_SECRET lines set, preserving every other line as-is.
-func rewriteEnvContent(content, id, secret string) string {
+// rewriteEnvContent returns env-file content with the given client-id and
+// client-secret env lines set, preserving every other line as-is.
+func rewriteEnvContent(content, id, secret, idKey, secretKey string) string {
 	var lines []string
 	if content != "" {
 		lines = strings.Split(strings.TrimSuffix(content, "\n"), "\n")
@@ -129,26 +146,26 @@ func rewriteEnvContent(content, id, secret string) string {
 	seenID, seenSecret := false, false
 	for i, ln := range lines {
 		switch {
-		case strings.HasPrefix(ln, "GOOGLE_CLIENT_ID="):
-			lines[i] = "GOOGLE_CLIENT_ID=" + id
+		case strings.HasPrefix(ln, idKey+"="):
+			lines[i] = idKey + "=" + id
 			seenID = true
-		case strings.HasPrefix(ln, "GOOGLE_CLIENT_SECRET="):
-			lines[i] = "GOOGLE_CLIENT_SECRET=" + secret
+		case strings.HasPrefix(ln, secretKey+"="):
+			lines[i] = secretKey + "=" + secret
 			seenSecret = true
 		}
 	}
 	if !seenID {
-		lines = append(lines, "GOOGLE_CLIENT_ID="+id)
+		lines = append(lines, idKey+"="+id)
 	}
 	if !seenSecret {
-		lines = append(lines, "GOOGLE_CLIENT_SECRET="+secret)
+		lines = append(lines, secretKey+"="+secret)
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
 
 // persistEnvCreds rewrites the env file with the new credentials, keeping
 // mode 600 (written via a temp file + rename so a crash can't truncate it).
-func persistEnvCreds(path, id, secret string) error {
+func persistEnvCreds(path, id, secret, idKey, secretKey string) error {
 	content := ""
 	if data, err := os.ReadFile(path); err == nil {
 		content = string(data)
@@ -156,7 +173,7 @@ func persistEnvCreds(path, id, secret string) error {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(rewriteEnvContent(content, id, secret)), 0600); err != nil {
+	if err := os.WriteFile(tmp, []byte(rewriteEnvContent(content, id, secret, idKey, secretKey)), 0600); err != nil {
 		return err
 	}
 	if err := os.Rename(tmp, path); err != nil {
@@ -164,6 +181,11 @@ func persistEnvCreds(path, id, secret string) error {
 		return err
 	}
 	return os.Chmod(path, 0600)
+}
+
+// persist saves this state's credentials into its env file.
+func (cs *credState) persist(id, secret string) error {
+	return persistEnvCreds(cs.envFile, id, secret, cs.idEnv, cs.secretEnv)
 }
 
 type setupCredsData struct {
@@ -222,7 +244,7 @@ func (a *app) handleSetupCredsPost(w http.ResponseWriter, r *http.Request) {
 		fail("That Client Secret looks too short — please paste the whole thing.")
 		return
 	}
-	if err := persistEnvCreds(a.creds.envFile, id, secret); err != nil {
+	if err := a.creds.persist(id, secret); err != nil {
 		log.Printf("setup-creds: could not persist env file: %v", err)
 		fail("The server couldn't save the credentials — please try again.")
 		return
@@ -233,4 +255,68 @@ func (a *app) handleSetupCredsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Print("setup-creds: Google OAuth credentials configured via the one-time setup page; sign-in is live")
 	a.render(w, r, "setupcredsdone", nil)
+}
+
+// ---------------------------------------------------------------------------
+// One-time credential setup for GitHub sign-in (/setup-github): the same
+// machinery as /setup-creds, armed only while the GitHub credentials are
+// incomplete, with its own token file (setup-token-github).
+// ---------------------------------------------------------------------------
+
+type setupGitHubData struct {
+	Token    string
+	ClientID string
+	Error    string
+}
+
+func (a *app) handleSetupGitHub(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		if a.ghCreds.configured() || !a.ghCreds.tokenValid(r.URL.Query().Get("token")) {
+			http.NotFound(w, r)
+			return
+		}
+		id, _ := a.ghCreds.get()
+		a.render(w, r, "setupgithub", setupGitHubData{Token: r.URL.Query().Get("token"), ClientID: id})
+	case http.MethodPost:
+		if !a.limiter.allow(clientIP(r), 10, time.Hour) {
+			http.Error(w, "Too many attempts — please wait a bit.", http.StatusTooManyRequests)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		token := r.FormValue("token")
+		if a.ghCreds.configured() || !a.ghCreds.tokenValid(token) {
+			http.NotFound(w, r)
+			return
+		}
+		id := strings.TrimSpace(r.FormValue("client_id"))
+		secret := strings.TrimSpace(r.FormValue("client_secret"))
+		fail := func(msg string) {
+			a.render(w, r, "setupgithub", setupGitHubData{Token: token, ClientID: id, Error: msg})
+		}
+		if len(id) < 10 || strings.ContainsAny(id, " \t") {
+			fail("That Client ID doesn't look right — please paste the whole thing.")
+			return
+		}
+		if len(secret) < 20 {
+			fail("That Client Secret looks too short — please paste the whole thing.")
+			return
+		}
+		if err := a.ghCreds.persist(id, secret); err != nil {
+			log.Printf("setup-github: could not persist env file: %v", err)
+			fail("The server couldn't save the credentials — please try again.")
+			return
+		}
+		a.ghCreds.completeSetup(id, secret)
+		if err := os.Remove(a.ghCreds.tokenPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("setup-github: could not delete token file: %v", err)
+		}
+		log.Print("setup-github: GitHub OAuth credentials configured via the one-time setup page; GitHub sign-in is live")
+		a.render(w, r, "setupgithubdone", nil)
+	default:
+		http.NotFound(w, r)
+	}
 }

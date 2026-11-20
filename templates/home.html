@@ -129,6 +129,7 @@
     {{else}}
     <p>{{tr "outside_pre"}}<b>{{tr "outside_word"}}</b>{{tr "outside_post"}}</p>
     <a class="google" href="/auth/google/login">{{tr "continue_google"}}</a>
+    {{if .GitHubLogin}}<div style="margin-top:10px;"><a class="google" href="/auth/github/login">{{tr "continue_github"}}</a></div>{{end}}
     <div class="micro">{{tr "signin_micro"}}</div>
     {{end}}
   </div>

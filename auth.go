@@ -20,6 +20,8 @@ type config struct {
 	BaseURL       string
 	GoogleID      string
 	GoogleSecret  string
+	GitHubID      string
+	GitHubSecret  string
 	SessionSecret string
 	AdminSub      string
 }
@@ -28,6 +30,9 @@ func (c config) oauthConfigured() bool { return c.GoogleID != "" && c.GoogleSecr
 func (c config) cookieSecure() bool    { return strings.HasPrefix(c.BaseURL, "https://") }
 func (c config) redirectURI() string {
 	return strings.TrimSuffix(c.BaseURL, "/") + "/auth/google/callback"
+}
+func (c config) githubRedirectURI() string {
+	return strings.TrimSuffix(c.BaseURL, "/") + "/auth/github/callback"
 }
 
 // ---------------------------------------------------------------------------
@@ -259,9 +264,17 @@ func (a *app) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	a.finishLogin(w, r, info.Sub)
+}
+
+// finishLogin is the shared tail of every OAuth callback: find or create
+// the user row for the provider identity key, record the referrer, set the
+// session cookie and send the user to name setup or the Space. Google
+// identities are the bare Google sub; GitHub identities are "gh:<id>".
+func (a *app) finishLogin(w http.ResponseWriter, r *http.Request, identity string) {
 	// Create the user row on first login; remember who referred them.
 	isNew := false
-	u, err := getUserBySub(a.db, info.Sub)
+	u, err := getUserBySub(a.db, identity)
 	if err != nil {
 		http.Error(w, tr(langOf(r), "err_server"), http.StatusInternalServerError)
 		return
@@ -269,11 +282,11 @@ func (a *app) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if u == nil {
 		isNew = true
 		if _, err := a.db.Exec(`INSERT INTO users(google_sub, ref_code, created_at) VALUES(?,?,?)`,
-			info.Sub, randomHex(5), time.Now().Unix()); err != nil {
+			identity, randomHex(5), time.Now().Unix()); err != nil {
 			http.Error(w, tr(langOf(r), "err_server"), http.StatusInternalServerError)
 			return
 		}
-		u, err = getUserBySub(a.db, info.Sub)
+		u, err = getUserBySub(a.db, identity)
 		if err != nil || u == nil {
 			http.Error(w, tr(langOf(r), "err_server"), http.StatusInternalServerError)
 			return
@@ -288,10 +301,104 @@ func (a *app) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_ = isNew
-	a.setSessionCookie(w, info.Sub)
+	a.setSessionCookie(w, identity)
 	if u.Name == "" {
 		http.Redirect(w, r, "/setup", http.StatusFound)
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+// ---------------------------------------------------------------------------
+// GitHub OAuth (same shape as Google's; no scope is requested, so the token
+// only ever reads the public profile — of which we keep just the numeric
+// account id, as the identity key "gh:<id>").
+// ---------------------------------------------------------------------------
+
+func (a *app) handleGitHubLogin(w http.ResponseWriter, r *http.Request) {
+	if !a.limiter.allow(clientIP(r), 30, 10*time.Minute) {
+		http.Error(w, tr(langOf(r), "err_too_many"), http.StatusTooManyRequests)
+		return
+	}
+	if !a.ghCreds.configured() {
+		http.Error(w, tr(langOf(r), "err_gh_not_config"), http.StatusServiceUnavailable)
+		return
+	}
+	ghID, _ := a.ghCreds.get()
+	state := randomHex(16)
+	http.SetCookie(w, &http.Cookie{
+		Name: oauthStateCookie, Value: state, Path: "/", MaxAge: 600,
+		HttpOnly: true, Secure: a.cfg.cookieSecure(), SameSite: http.SameSiteLaxMode,
+	})
+	q := url.Values{
+		"client_id":    {ghID},
+		"redirect_uri": {a.cfg.githubRedirectURI()},
+		"state":        {state},
+	}
+	http.Redirect(w, r, "https://github.com/login/oauth/authorize?"+q.Encode(), http.StatusFound)
+}
+
+func (a *app) handleGitHubCallback(w http.ResponseWriter, r *http.Request) {
+	if !a.limiter.allow(clientIP(r), 30, 10*time.Minute) {
+		http.Error(w, tr(langOf(r), "err_too_many"), http.StatusTooManyRequests)
+		return
+	}
+	if !a.ghCreds.configured() {
+		http.Error(w, tr(langOf(r), "err_gh_not_config"), http.StatusServiceUnavailable)
+		return
+	}
+	ghID, ghSecret := a.ghCreds.get()
+	stateCk, err := r.Cookie(oauthStateCookie)
+	if err != nil || stateCk.Value == "" || stateCk.Value != r.URL.Query().Get("state") {
+		http.Error(w, tr(langOf(r), "err_signin_expired"), http.StatusBadRequest)
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, tr(langOf(r), "err_signin_cancelled"), http.StatusBadRequest)
+		return
+	}
+	// Exchange the code for an access token.
+	form := url.Values{
+		"client_id":     {ghID},
+		"client_secret": {ghSecret},
+		"code":          {code},
+		"redirect_uri":  {a.cfg.githubRedirectURI()},
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	req, _ := http.NewRequest("POST", "https://github.com/login/oauth/access_token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, tr(langOf(r), "err_reach_github"), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	var tok struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tok); err != nil || tok.AccessToken == "" {
+		http.Error(w, tr(langOf(r), "err_github_failed"), http.StatusBadGateway)
+		return
+	}
+	// Fetch the stable numeric account id.
+	req2, _ := http.NewRequest("GET", "https://api.github.com/user", nil)
+	req2.Header.Set("Authorization", "Bearer "+tok.AccessToken)
+	req2.Header.Set("Accept", "application/vnd.github+json")
+	req2.Header.Set("User-Agent", "SeeYouHere")
+	uresp, err := client.Do(req2)
+	if err != nil {
+		http.Error(w, tr(langOf(r), "err_reach_github"), http.StatusBadGateway)
+		return
+	}
+	defer uresp.Body.Close()
+	var info struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.NewDecoder(uresp.Body).Decode(&info); err != nil || info.ID == 0 {
+		http.Error(w, tr(langOf(r), "err_github_failed"), http.StatusBadGateway)
+		return
+	}
+	a.finishLogin(w, r, "gh:"+strconv.FormatInt(info.ID, 10))
 }

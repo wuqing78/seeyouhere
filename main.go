@@ -52,6 +52,8 @@ func main() {
 		BaseURL:       strings.TrimSuffix(envOr("SYH_BASE_URL", "https://seeyouhere.today"), "/"),
 		GoogleID:      os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:  os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GitHubID:      os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubSecret:  os.Getenv("GITHUB_CLIENT_SECRET"),
 		SessionSecret: os.Getenv("SYH_SESSION_SECRET"),
 		AdminSub:      os.Getenv("SYH_ADMIN_SUB"),
 	}
@@ -86,14 +88,19 @@ func main() {
 
 	envFile := envOr("SYH_ENV_FILE", filepath.Join(filepath.Dir(cfg.DBPath), "seeyouhere.env"))
 	creds := newCredState(cfg, envFile)
-	a := &app{db: db, tmpls: tmpls, cfg: cfg, creds: creds, hub: newHub(), limiter: newRateLimiter()}
+	ghCreds := newGitHubCredState(cfg, envFile)
+	a := &app{db: db, tmpls: tmpls, cfg: cfg, creds: creds, ghCreds: ghCreds, hub: newHub(), limiter: newRateLimiter()}
 	creds.initSetupToken()
+	ghCreds.initSetupToken()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", a.handleHome)
 	mux.HandleFunc("/auth/google/login", a.handleGoogleLogin)
 	mux.HandleFunc("/auth/google/callback", a.handleGoogleCallback)
+	mux.HandleFunc("/auth/github/login", a.handleGitHubLogin)
+	mux.HandleFunc("/auth/github/callback", a.handleGitHubCallback)
 	mux.HandleFunc("/setup-creds", a.handleSetupCreds)
+	mux.HandleFunc("/setup-github", a.handleSetupGitHub)
 	mux.HandleFunc("/setup", a.handleSetup)
 	mux.HandleFunc("/setup/confirm", a.handleSetupConfirm)
 	mux.HandleFunc("/checkin", a.handleCheckin)

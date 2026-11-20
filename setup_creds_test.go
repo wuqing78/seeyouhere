@@ -50,7 +50,7 @@ func TestRewriteEnvContent(t *testing.T) {
 
 	// Replaces existing lines, preserves everything else.
 	in := "# comment\nSYH_ADDR=127.0.0.1:18081\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nSYH_ADMIN_SUB=\n"
-	out := rewriteEnvContent(in, id, secret)
+	out := rewriteEnvContent(in, id, secret, "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
 	for _, want := range []string{
 		"# comment", "SYH_ADDR=127.0.0.1:18081", "SYH_ADMIN_SUB=",
 		"GOOGLE_CLIENT_ID=" + id, "GOOGLE_CLIENT_SECRET=" + secret,
@@ -64,13 +64,13 @@ func TestRewriteEnvContent(t *testing.T) {
 	}
 
 	// Appends when the keys are absent.
-	out = rewriteEnvContent("SYH_ADDR=x\n", id, secret)
+	out = rewriteEnvContent("SYH_ADDR=x\n", id, secret, "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
 	if !strings.Contains(out, "GOOGLE_CLIENT_ID="+id+"\n") || !strings.Contains(out, "GOOGLE_CLIENT_SECRET="+secret+"\n") {
 		t.Fatalf("missing keys should be appended:\n%s", out)
 	}
 
 	// Works from empty content.
-	out = rewriteEnvContent("", id, secret)
+	out = rewriteEnvContent("", id, secret, "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
 	if out != "GOOGLE_CLIENT_ID="+id+"\nGOOGLE_CLIENT_SECRET="+secret+"\n" {
 		t.Fatalf("empty content rewrite wrong: %q", out)
 	}
@@ -82,7 +82,7 @@ func TestPersistEnvCreds(t *testing.T) {
 	if err := os.WriteFile(path, []byte("SYH_ADDR=127.0.0.1:18081\nGOOGLE_CLIENT_ID=\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := persistEnvCreds(path, "123-x.apps.googleusercontent.com", "GOCSPX-dummysecret"); err != nil {
+	if err := persistEnvCreds(path, "123-x.apps.googleusercontent.com", "GOCSPX-dummysecret", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(path)
