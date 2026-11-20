@@ -406,7 +406,7 @@ func (a *app) handleGitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 // ---------------------------------------------------------------------------
 // Guest mode: no sign-in at all. The site invents the identity itself —
-// sub "guest:<random>", display name "游客N" (N = running guest count) —
+// sub "guest:<random>", display name "Guest N" (N = running guest count) —
 // and the session cookie is the only thing that remembers it; clear the
 // cookie and that guest is gone for good. Guests follow the same rules
 // (check-in, daily quota, taps) but never earn points: a tap BY a guest
@@ -440,7 +440,7 @@ func (a *app) handleGuestEnter(w http.ResponseWriter, r *http.Request) {
 	// The guest number is a running count; if that display name is already
 	// taken (a registered user picked it first), keep counting up.
 	for n := guests + 1; ; n++ {
-		name := fmt.Sprintf("游客%d", n)
+		name := fmt.Sprintf("Guest %d", n)
 		if _, err := a.db.Exec(`INSERT INTO users(google_sub, name, name_key, ref_code, created_at) VALUES(?,?,?,?,?)`,
 			sub, name, nameKeyOf(name), randomHex(5), time.Now().Unix()); err == nil {
 			break

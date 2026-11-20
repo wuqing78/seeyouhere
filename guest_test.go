@@ -108,12 +108,12 @@ func TestGuestMode(t *testing.T) {
 	a := testApp(t)
 
 	g1Cookie, g1 := guestEnter(t, a, "10.0.0.1")
-	if g1.Name != "游客1" || !isGuestSub(g1.Sub) {
-		t.Fatalf("guest 1 = %+v, want name 游客1 with guest sub", g1)
+	if g1.Name != "Guest 1" || !isGuestSub(g1.Sub) {
+		t.Fatalf("guest 1 = %+v, want name Guest 1 with guest sub", g1)
 	}
 	_, g2 := guestEnter(t, a, "10.0.0.2")
-	if g2.Name != "游客2" {
-		t.Fatalf("guest 2 name = %q, want 游客2", g2.Name)
+	if g2.Name != "Guest 2" {
+		t.Fatalf("guest 2 name = %q, want Guest 2", g2.Name)
 	}
 	g2Cookie := a.signSession(g2.Sub)
 
