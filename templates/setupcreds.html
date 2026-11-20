@@ -1,0 +1,64 @@
+{{define "setupcreds"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One-time setup — SeeYouHere.today</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+  </header>
+
+  <div class="tagline">One-time setup: connect Google sign-in.</div>
+
+  <form class="setup" method="post" action="/setup-creds">
+    <input type="hidden" name="token" value="{{.Token}}">
+    <label for="client_id">Google Client ID</label>
+    <input type="text" id="client_id" name="client_id" value="{{.ClientID}}" autocomplete="off" spellcheck="false">
+    <label for="client_secret" style="margin-top:14px;">Google Client Secret</label>
+    <input type="password" id="client_secret" name="client_secret" value="" autocomplete="off" spellcheck="false" placeholder="Paste the Client Secret">
+    <div class="hint">
+      This page works <b>once</b> — as soon as the credentials are saved, this link dies and the page is gone.
+    </div>
+    {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
+    <button class="small" type="submit">Save &amp; turn on sign-in</button>
+  </form>
+
+  <div class="spacer"></div>
+  <footer>
+    <div class="me">One Space, one day.</div>
+    <div class="reset">One Space, one day — resets 08:00 UTC &middot; <a href="/privacy">Privacy</a></div>
+  </footer>
+</body>
+</html>
+{{end}}
+{{define "setupcredsdone"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign-in is live — SeeYouHere.today</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+  </header>
+
+  <div class="tagline center">Done — sign-in is live.</div>
+  <p class="warn">The credentials are saved and Google sign-in is on.<br>
+  This setup page has switched itself off for good.</p>
+  <p class="center"><a href="/">Go try it →</a></p>
+
+  <div class="spacer"></div>
+  <footer>
+    <div class="me">One Space, one day.</div>
+    <div class="reset">One Space, one day — resets 08:00 UTC &middot; <a href="/privacy">Privacy</a></div>
+  </footer>
+</body>
+</html>
+{{end}}

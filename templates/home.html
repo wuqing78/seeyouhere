@@ -1,0 +1,163 @@
+{{define "home"}}<!DOCTYPE html>
+<html lang="{{if eq (curlang) "zh"}}zh-CN{{else}}en{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{tr "home_title"}}</title>
+<meta name="description" content="A very boring social network for lonely people: you can only tap names. Check in, tap someone, get tapped back — your total never goes down.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SeeYouHere">
+<meta property="og:title" content="SeeYouHere.today">
+<meta property="og:description" content="A very boring social network: you can only tap names">
+<meta property="og:url" content="https://seeyouhere.today/">
+<meta property="og:image" content="https://seeyouhere.today/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SeeYouHere.today">
+<meta name="twitter:description" content="A very boring social network: you can only tap names">
+<meta name="twitter:image" content="https://seeyouhere.today/static/og.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "SeeYouHere",
+  "url": "https://seeyouhere.today",
+  "description": "A very boring social network for lonely people: you can only tap names. Check in, tap someone, get tapped back — your total never goes down.",
+  "applicationCategory": "SocialNetworkingApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+    <div class="hright">
+      {{if .LoggedIn}}<div class="points"><span class="pnum" id="points-num">{{comma .Points}}</span><span class="live"></span><span class="plabel">{{tr "points"}}</span></div>{{end}}
+    </div>
+  </header>
+
+  {{if .Banned}}
+  <div class="door">
+    <p><b>{{tr "banned_title"}}</b></p>
+    <p>{{tr "banned_body"}}</p>
+    <a class="google" href="/logout">{{tr "sign_out"}}</a>
+  </div>
+  {{else if .Inside}}
+  <div class="count">{{tr "here_pre"}}<span id="here-count">{{.TotalHere}}</span>{{tr "here_post"}}</div>
+
+  <div class="creamwin">
+    <div class="roster">
+      {{range .Plates}}{{if .Me}}<span class="name self">{{.Name}}</span>{{else}}<button class="name {{if gt .TappedMe 0}}pink{{else}}blue{{end}}" data-uid="{{.ID}}">{{.Name}}{{if gt .TappedMe 0}}<sup>{{.TappedMe}}</sup>{{end}}</button>{{end}}{{end}}
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <div class="taps">{{tr "bar_left_pre"}}<b id="quota-left">{{.QuotaLeft}}</b>{{tr "bar_left_post"}}{{if gt .Tickets 0}} &middot; <span id="tickets-count">{{.Tickets}}</span> {{if eq .Tickets 1}}{{tr "ticket_one"}}{{else}}{{tr "ticket_many"}}{{end}}{{end}}</div>
+    <div class="lvl">Lv {{.Level}} &middot; {{trf "footer_day" .Days}}</div>
+  </div>
+  <div class="err" id="tap-err"></div>
+
+  <script>
+    function fmt(n){ return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    var ptsEl = document.getElementById('points-num');
+    var errEl = document.getElementById('tap-err');
+    function connect(){
+      var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+      ws.onmessage = function(e){
+        var m = JSON.parse(e.data);
+        if (m.type !== 'tap') return;
+        ptsEl.textContent = fmt(m.points);
+        ptsEl.classList.remove('pulse'); void ptsEl.offsetWidth; ptsEl.classList.add('pulse');
+        var plate = document.querySelector('button.name[data-uid="' + m.from + '"]');
+        if (plate) {
+          var sup = plate.querySelector('sup');
+          if (!sup) { sup = document.createElement('sup'); plate.appendChild(sup); }
+          sup.textContent = m.pair;
+          plate.classList.remove('blue');
+          plate.classList.add('pink');
+        }
+      };
+      ws.onclose = function(){ setTimeout(connect, 3000); };
+    }
+    connect();
+    document.querySelectorAll('button.name[data-uid]').forEach(function(btn){
+      btn.addEventListener('pointerdown', function(){ btn.classList.add('pressing'); });
+      ['pointerup','pointercancel','pointerleave'].forEach(function(t){
+        btn.addEventListener(t, function(){ btn.classList.remove('pressing'); });
+      });
+      btn.addEventListener('click', function(){
+        btn.blur();
+        errEl.textContent = '';
+        fetch('/tap', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({to: parseInt(btn.dataset.uid, 10)})})
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if (d.ok) {
+              document.getElementById('quota-left').textContent = d.quotaLeft;
+              var tk = document.getElementById('tickets-count');
+              if (tk) tk.textContent = d.tickets;
+            } else {
+              errEl.textContent = d.error || '{{tr "something_wrong"}}';
+            }
+          })
+          .catch(function(){ errEl.textContent = '{{tr "network_hiccup"}}'; });
+      });
+    });
+  </script>
+  {{else}}
+  <div class="tagline">{{tr "tagline"}}</div>
+
+  <div class="window">
+    <div class="wlabel"><span>{{tr "window_label"}}</span><span>{{tr "window_glimpse"}}</span></div>
+    <div class="names">
+      {{range .WindowPlates}}<span class="name blue">{{.Name}}</span>{{else}}<span class="name">{{tr "no_one_yet"}}</span>{{end}}
+    </div>
+    <div class="fade">
+      <div class="more">{{if gt .MoreCount 0}}{{trf "more_inside" .MoreCount}}{{else}}{{tr "all_visible"}}{{end}}</div>
+      <div class="count">{{tr "here_pre"}}{{.TotalHere}}{{tr "here_post"}}</div>
+    </div>
+  </div>
+
+  <div class="howline">{{tr "how_line"}}</div>
+
+  <div class="door">
+    {{if .LoggedIn}}
+    <p>{{tr "outside_pre"}}<b>{{tr "outside_word"}}</b>{{tr "outside_post"}}</p>
+    <form method="post" action="/checkin"><button class="imhere" type="submit">I&rsquo;m here</button></form>
+    <div class="micro">{{tr "step_in_micro"}}</div>
+    {{else}}
+    <p>{{tr "outside_pre"}}<b>{{tr "outside_word"}}</b>{{tr "outside_post"}}</p>
+    <a class="google" href="/auth/google/login">{{tr "continue_google"}}</a>
+    <div class="micro">{{tr "signin_micro"}}</div>
+    {{end}}
+  </div>
+  {{end}}
+
+  <div class="spacer"></div>
+
+  {{if .Inside}}
+  <div class="links">
+    <a href="/share">{{tr "todays_card"}}</a>
+    <a href="#" id="copy-invite">{{tr "copy_invite"}}</a>
+    {{if .IsAdmin}}<a href="/admin">{{tr "admin_link"}}</a>{{end}}
+    <a href="/logout">{{tr "sign_out"}}</a>
+  </div>
+  <script>
+    var inviteLink = {{printf "%q" .RefLink}};
+    document.getElementById('copy-invite').addEventListener('click', function(e){
+      e.preventDefault();
+      if (navigator.clipboard) navigator.clipboard.writeText(inviteLink);
+      this.textContent = '{{tr "invite_copied"}}';
+    });
+  </script>
+  {{end}}
+
+  <footer>
+    <div class="freset">{{tr "footer_reset"}} &middot; <a href="/about">About</a> &middot; <a href="/privacy">{{tr "privacy_link"}}</a></div>
+    {{template "langswitch" .}}
+    {{if and .LoggedIn (not .Inside)}}<div class="fme"><b>{{.MeName}}</b> &middot; Lv {{.Level}} &middot; {{trf "footer_day" .Days}}</div>{{end}}
+  </footer>
+</body>
+</html>
+{{end}}

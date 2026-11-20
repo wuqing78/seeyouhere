@@ -1,0 +1,85 @@
+{{define "setup"}}<!DOCTYPE html>
+<html lang="{{if eq (curlang) "zh"}}zh-CN{{else}}en{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{tr "setup_title"}}</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+  </header>
+
+  <div class="tagline">{{tr "setup_tagline"}}</div>
+
+  <form class="setup" method="post" action="/setup">
+    <label for="name">{{tr "setup_label"}}</label>
+    <input type="text" id="name" name="name" value="{{.Name}}" autocomplete="off" autofocus maxlength="32" placeholder="e.g. Wren, 海盐, Echo7">
+    <div class="hint">
+      {{tr "setup_hint1"}}<br>
+      {{tr "setup_hint2"}} <span id="width-count"></span><br>
+      {{tr "setup_hint3"}}
+    </div>
+    {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
+    <button class="small" type="submit">{{tr "continue_btn"}}</button>
+  </form>
+
+  <div class="spacer"></div>
+  <footer>
+    <div class="me">{{tr "setup_footer"}}</div>
+    {{template "langswitch" .}}
+    <div class="reset">{{tr "footer_reset"}} &middot; <a href="/privacy">{{tr "privacy_link"}}</a></div>
+  </footer>
+  <script>
+    var input = document.getElementById('name');
+    var out = document.getElementById('width-count');
+    var han = /\p{Script=Han}/u;
+    var widthPrefix = '{{tr "width_prefix"}}';
+    var widthSuffix = '{{tr "width_suffix"}}';
+    function update(){
+      var w = 0;
+      for (var ch of input.value) w += han.test(ch) ? 2 : 1;
+      out.textContent = input.value ? (widthPrefix + w + widthSuffix) : '';
+    }
+    input.addEventListener('input', update); update();
+  </script>
+</body>
+</html>
+{{end}}
+{{define "setupconfirm"}}<!DOCTYPE html>
+<html lang="{{if eq (curlang) "zh"}}zh-CN{{else}}en{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{tr "confirm_title"}}</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+  </header>
+
+  <div class="tagline center">{{tr "one_last_look"}}</div>
+  <div class="bigname">{{.Name}}</div>
+  <p class="warn">{{tr "warn_pre"}}<b>{{tr "warn_word"}}</b>{{tr "warn_post"}}<br>
+  {{tr "warn2"}}</p>
+
+  <form class="center" method="post" action="/setup/confirm">
+    <input type="hidden" name="name" value="{{.Name}}">
+    <input type="hidden" name="sig" value="{{.Sig}}">
+    <button class="imhere" type="submit" style="font-size:19px; padding:13px 44px;">{{tr "yes_me"}}</button>
+  </form>
+  <p class="center" style="margin-top:16px;"><a href="/setup">{{tr "go_back"}}</a></p>
+
+  <div class="spacer"></div>
+  <footer>
+    <div class="me">{{tr "confirm_footer"}}</div>
+    {{template "langswitch" .}}
+    <div class="reset">{{tr "footer_reset"}} &middot; <a href="/privacy">{{tr "privacy_link"}}</a></div>
+  </footer>
+</body>
+</html>
+{{end}}

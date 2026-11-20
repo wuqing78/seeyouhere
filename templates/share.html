@@ -1,0 +1,63 @@
+{{define "share"}}<!DOCTYPE html>
+<html lang="{{if eq (curlang) "zh"}}zh-CN{{else}}en{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{tr "share_title"}}</title>
+<meta name="description" content="A very boring social network for lonely people: you can only tap names. Check in, tap someone, get tapped back — your total never goes down.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SeeYouHere">
+<meta property="og:title" content="SeeYouHere.today">
+<meta property="og:description" content="A very boring social network: you can only tap names">
+<meta property="og:url" content="https://seeyouhere.today/share">
+<meta property="og:image" content="https://seeyouhere.today/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SeeYouHere.today">
+<meta name="twitter:description" content="A very boring social network: you can only tap names">
+<meta name="twitter:image" content="https://seeyouhere.today/static/og.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+    <div class="hright">
+      <div class="points"><span class="pnum">{{comma .Points}}</span><span class="plabel">{{tr "points"}}</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <img src="/static/dots.svg?v=3" alt="">
+    <div class="day">{{trf "share_day" .Days}}</div>
+    <div class="stats">
+      {{tr "share_tapped_pre"}}<b>{{.TappedToday}}</b>{{tr "share_tapped_post"}}<br>
+      {{tr "share_points_pre"}}<b>{{comma .Points}}</b>{{tr "share_points_post"}}<br>
+      {{tr "share_people_pre"}}<b>{{.TotalHere}}</b>{{tr "share_people_post"}}
+    </div>
+  </div>
+
+  <textarea class="copytext" id="copytext" rows="3" readonly>{{.Text}}</textarea>
+  <div class="center"><button class="small" id="copy-btn" type="button">{{tr "share_copy_btn"}}</button></div>
+
+  <div class="note" style="margin-top:22px;">{{tr "share_invite"}} <a href="{{.RefLink}}">{{.RefLink}}</a><br>
+  {{tr "share_invite_note"}}</div>
+
+  <div class="links"><a href="/">{{tr "back_to_space"}}</a></div>
+
+  <div class="spacer"></div>
+  <footer>
+    <div class="me"><b>{{.Name}}</b></div>
+    {{template "langswitch" .}}
+    <div class="reset">{{tr "footer_reset"}} &middot; <a href="/about">About</a> &middot; <a href="/privacy">{{tr "privacy_link"}}</a></div>
+  </footer>
+  <script>
+    document.getElementById('copy-btn').addEventListener('click', function(){
+      var t = document.getElementById('copytext');
+      t.select();
+      if (navigator.clipboard) navigator.clipboard.writeText(t.value);
+      this.textContent = '{{tr "share_copied"}}';
+    });
+  </script>
+</body>
+</html>
+{{end}}

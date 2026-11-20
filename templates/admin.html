@@ -1,0 +1,38 @@
+{{define "admin"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — SeeYouHere.today</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+  </header>
+  <div class="tagline">Admin — users</div>
+  <table class="admin">
+    <tr><th>ID</th><th>Name</th><th>Points</th><th>Tickets</th><th>Days</th><th>Status</th><th></th></tr>
+    {{range .Users}}
+    <tr>
+      <td>{{.ID}}</td><td>{{.Name}}</td><td>{{.Points}}</td><td>{{.Tickets}}</td><td>{{.Days}}</td>
+      <td>{{if .Banned}}banned{{else}}active{{end}}</td>
+      <td>
+        <form method="post" action="/admin/ban">
+          <input type="hidden" name="user_id" value="{{.ID}}">
+          {{if .Banned}}<input type="hidden" name="action" value="unban"><button type="submit">Unban</button>{{else}}<input type="hidden" name="action" value="ban"><button type="submit">Ban</button>{{end}}
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </table>
+  <div class="links"><a href="/">&larr; Back to the Space</a></div>
+  <div class="spacer"></div>
+  <footer>
+    <div class="me">Admin</div>
+    <div class="reset">One Space, one day — resets 08:00 UTC &middot; <a href="/privacy">Privacy</a></div>
+  </footer>
+</body>
+</html>
+{{end}}

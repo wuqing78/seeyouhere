@@ -1,0 +1,5 @@
+seeyouhere
+seeyouhere-bin
+*.db
+*.env
+preview*.png

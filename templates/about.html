@@ -1,0 +1,52 @@
+{{define "about"}}<!DOCTYPE html>
+<html lang="{{if eq (curlang) "zh"}}zh-CN{{else}}en{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About — SeeYouHere</title>
+<meta name="description" content="A very boring social network for lonely people: you can only tap names. Check in, tap someone, get tapped back — your total never goes down.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SeeYouHere">
+<meta property="og:title" content="SeeYouHere.today">
+<meta property="og:description" content="A very boring social network: you can only tap names">
+<meta property="og:url" content="https://seeyouhere.today/about">
+<meta property="og:image" content="https://seeyouhere.today/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SeeYouHere.today">
+<meta name="twitter:description" content="A very boring social network: you can only tap names">
+<meta name="twitter:image" content="https://seeyouhere.today/static/og.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><img src="/static/dots.svg?v=3" alt=""><span class="wordmark">SeeYouHere<span class="tld">.today</span></span></a>
+  </header>
+
+  <div class="prose">
+    <p>SeeYouHere is a small place on the internet — a very boring social network, on purpose.</p>
+
+    <p>A small place for lonely people to be alone, together.</p>
+
+    <p>Every day, one list: everyone who is here today. Press &ldquo;I&rsquo;m here&rdquo; to join it. Tap a name to say — without words — <i>I see you</i>. They might tap you back.</p>
+
+    <p>Your name is yours forever. Your points only go up. Your level only counts the days you&rsquo;ve shown up.</p>
+
+    <p>No feed. No posts. No comments. No messages. No profiles. If you came looking for a pointless website to spend a quiet minute on, this one asks only that you show up.</p>
+
+    <p>One Space, one day — resets 08:00 UTC.</p>
+
+    <p>Someday this list may hold thousands of names, or just two. Either way, it will be here.</p>
+
+    <p>SeeYouHere 是一个被减到几乎什么都不剩的社交空间：每天一张名单，上面是今天到场的所有人。你能做的只有点一下别人的名字，别人也可以点你。没有信息流，没有评论，没有私信——在这个人人都在说话的互联网上，它只留下「在场」本身。有点无聊，有点孤独，也有点安静。</p>
+  </div>
+
+  <div class="spacer"></div>
+  <footer>
+    <div class="me">{{tr "footer_gather"}}</div>
+    {{template "langswitch" .}}
+    <div class="reset">{{tr "footer_reset"}} &middot; <a href="/about">About</a> &middot; <a href="/privacy">{{tr "privacy_link"}}</a></div>
+  </footer>
+</body>
+</html>
+{{end}}
