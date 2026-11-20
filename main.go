@@ -99,6 +99,7 @@ func main() {
 	mux.HandleFunc("/auth/google/callback", a.handleGoogleCallback)
 	mux.HandleFunc("/auth/github/login", a.handleGitHubLogin)
 	mux.HandleFunc("/auth/github/callback", a.handleGitHubCallback)
+	mux.HandleFunc("/guest", a.handleGuestEnter)
 	mux.HandleFunc("/setup-creds", a.handleSetupCreds)
 	mux.HandleFunc("/setup-github", a.handleSetupGitHub)
 	mux.HandleFunc("/setup", a.handleSetup)

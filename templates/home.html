@@ -28,7 +28,7 @@
 }
 </script>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/static/style.css?v=11">
+<link rel="stylesheet" href="/static/style.css?v=12">
 </head>
 <body>
   <header>
@@ -131,6 +131,8 @@
     <a class="google" href="/auth/google/login">{{tr "continue_google"}}</a>
     {{if .GitHubLogin}}<div style="margin-top:10px;"><a class="google" href="/auth/github/login">{{tr "continue_github"}}</a></div>{{end}}
     <div class="micro">{{tr "signin_micro"}}</div>
+    <div style="margin-top:14px;"><form method="post" action="/guest"><button class="google" type="submit">{{tr "continue_guest"}}</button></form></div>
+    <div class="micro">{{tr "guest_micro"}}</div>
     {{end}}
   </div>
   {{end}}
@@ -140,18 +142,18 @@
   {{if .Inside}}
   <div class="links">
     <a href="/share">{{tr "todays_card"}}</a>
-    <a href="#" id="copy-invite">{{tr "copy_invite"}}</a>
+    {{if not .IsGuest}}<a href="#" id="copy-invite">{{tr "copy_invite"}}</a>{{end}}
     {{if .IsAdmin}}<a href="/admin">{{tr "admin_link"}}</a>{{end}}
     <a href="/logout">{{tr "sign_out"}}</a>
   </div>
-  <script>
+  {{if not .IsGuest}}<script>
     var inviteLink = {{printf "%q" .RefLink}};
     document.getElementById('copy-invite').addEventListener('click', function(e){
       e.preventDefault();
       if (navigator.clipboard) navigator.clipboard.writeText(inviteLink);
       this.textContent = '{{tr "invite_copied"}}';
     });
-  </script>
+  </script>{{end}}
   {{end}}
 
   <footer>

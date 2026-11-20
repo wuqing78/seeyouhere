@@ -45,11 +45,12 @@ type plate struct {
 type homeData struct {
 	LoggedIn    bool
 	GitHubLogin bool
+	IsGuest     bool
 	Banned      bool
-	Inside    bool
-	IsAdmin   bool
-	DateLabel string
-	TotalHere int
+	Inside      bool
+	IsAdmin     bool
+	DateLabel   string
+	TotalHere   int
 
 	// window view
 	WindowPlates []plate
@@ -130,6 +131,7 @@ func (a *app) handleHome(w http.ResponseWriter, r *http.Request) {
 	data.TotalHere = len(roster)
 
 	if u != nil {
+		data.IsGuest = isGuestSub(u.Sub)
 		data.MeName = u.Name
 		data.Points = u.Points
 		data.Tickets = u.Tickets
@@ -361,7 +363,8 @@ func (a *app) handleCheckin(w http.ResponseWriter, r *http.Request) {
 		err := tx.QueryRow(`SELECT referrer_id FROM referrals WHERE invitee_id=? AND rewarded_at IS NULL`,
 			u.ID).Scan(&referrerID)
 		if err == nil {
-			if _, err := tx.Exec(`UPDATE users SET tickets=tickets+1 WHERE id=?`, referrerID); err != nil {
+			// Guests never earn tickets, even as referrers.
+			if _, err := tx.Exec(`UPDATE users SET tickets=tickets+1 WHERE id=? AND google_sub NOT LIKE 'guest:%'`, referrerID); err != nil {
 				http.Error(w, tr(langOf(r), "err_server"), http.StatusInternalServerError)
 				return
 			}
@@ -440,8 +443,8 @@ func (a *app) handleTap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var targetBanned int
-	var targetName string
-	err = tx.QueryRow(`SELECT banned, name FROM users WHERE id=?`, req.To).Scan(&targetBanned, &targetName)
+	var targetName, targetSub string
+	err = tx.QueryRow(`SELECT banned, name, google_sub FROM users WHERE id=?`, req.To).Scan(&targetBanned, &targetName, &targetSub)
 	if err != nil || targetBanned != 0 || targetName == "" {
 		writeJSON(w, http.StatusNotFound, tapResponse{Error: tr(lang, "err_not_here")})
 		return
@@ -493,9 +496,13 @@ func (a *app) handleTap(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, tapResponse{Error: tr(lang, "err_server")})
 		return
 	}
-	if _, err := tx.Exec(`UPDATE users SET points=points+1 WHERE id=?`, req.To); err != nil {
-		writeJSON(w, http.StatusInternalServerError, tapResponse{Error: tr(lang, "err_server")})
-		return
+	// Points move only between registered users: a tap by a guest is a
+	// signal, not a point, and a guest has no points to gain.
+	if !isGuestSub(u.Sub) && !isGuestSub(targetSub) {
+		if _, err := tx.Exec(`UPDATE users SET points=points+1 WHERE id=?`, req.To); err != nil {
+			writeJSON(w, http.StatusInternalServerError, tapResponse{Error: tr(lang, "err_server")})
+			return
+		}
 	}
 	var pairCount, targetPoints int64
 	if err := tx.QueryRow(`SELECT count FROM taps WHERE day=? AND from_id=? AND to_id=?`,

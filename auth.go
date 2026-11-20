@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -401,4 +402,54 @@ func (a *app) handleGitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.finishLogin(w, r, "gh:"+strconv.FormatInt(info.ID, 10))
+}
+
+// ---------------------------------------------------------------------------
+// Guest mode: no sign-in at all. The site invents the identity itself —
+// sub "guest:<random>", display name "游客N" (N = running guest count) —
+// and the session cookie is the only thing that remembers it; clear the
+// cookie and that guest is gone for good. Guests follow the same rules
+// (check-in, daily quota, taps) but never earn points: a tap BY a guest
+// does not mint points for the recipient, and a tap ON a guest does not
+// mint points for the guest. Every tap is still recorded in the taps
+// table, so the corner-number signal works exactly the same.
+// ---------------------------------------------------------------------------
+
+func isGuestSub(sub string) bool { return strings.HasPrefix(sub, "guest:") }
+
+func (a *app) handleGuestEnter(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	if a.currentUser(r) != nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	ip := clientIP(r)
+	if !a.limiter.allow(ip, 30, 10*time.Minute) || !a.limiter.allow("guest:"+ip, 10, 24*time.Hour) {
+		http.Error(w, tr(langOf(r), "err_too_many"), http.StatusTooManyRequests)
+		return
+	}
+	var guests int64
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM users WHERE google_sub LIKE 'guest:%'`).Scan(&guests); err != nil {
+		http.Error(w, tr(langOf(r), "err_server"), http.StatusInternalServerError)
+		return
+	}
+	sub := "guest:" + randomHex(16)
+	// The guest number is a running count; if that display name is already
+	// taken (a registered user picked it first), keep counting up.
+	for n := guests + 1; ; n++ {
+		name := fmt.Sprintf("游客%d", n)
+		if _, err := a.db.Exec(`INSERT INTO users(google_sub, name, name_key, ref_code, created_at) VALUES(?,?,?,?,?)`,
+			sub, name, nameKeyOf(name), randomHex(5), time.Now().Unix()); err == nil {
+			break
+		}
+		if n > guests+1000 {
+			http.Error(w, tr(langOf(r), "err_server"), http.StatusInternalServerError)
+			return
+		}
+	}
+	a.setSessionCookie(w, sub)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
